@@ -6,7 +6,7 @@ import yt_dlp
 
 
 def download_thread(url, folder, file_format, download_subs, progress_bar, status_label, download_btn):
-    """Εκτελεί τη λήψη σε ξεχωριστό thread για να μην 'παγώνει' το GUI."""
+    """Starts Downloading a different thread so that it won't (froze) to GUI."""
     
     def progress_hook(d):
         if d['status'] == 'downloading':
