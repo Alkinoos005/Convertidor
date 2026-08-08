@@ -1,97 +1,128 @@
 import os
-from pytube import YouTube, Playlist
+import threading
 import tkinter as tk
 from tkinter import messagebox, filedialog, ttk
+import yt_dlp
 
-def actualizar_progreso(stream, chunk, bytes_remaining):
-    total_size = stream.filesize
-    bytes_descargados = total_size - bytes_remaining
-    porcentaje = int((bytes_descargados / total_size) * 100)
-    barra['value'] = porcentaje
-    ventana.update_idletasks()
 
-def descargar_video(yt, carpeta, formato, descargar_sub):
-    yt.register_on_progress_callback(actualizar_progreso)
-    titulo = yt.title
-    if formato == "MP4 (video)":
-        stream = yt.streams.get_highest_resolution()
-        archivo = stream.download(output_path=carpeta)
-    elif formato == "MP3 (audio)":
-        stream = yt.streams.filter(only_audio=True).first()
-        archivo = stream.download(output_path=carpeta)
-        base, _ = os.path.splitext(archivo)
-        nuevo_archivo = base + ".mp3"
-        os.rename(archivo, nuevo_archivo)
-        archivo = nuevo_archivo
-    else:
-        return None
+def download_thread(url, folder, file_format, download_subs, progress_bar, status_label, download_btn):
+    """Εκτελεί τη λήψη σε ξεχωριστό thread για να μην 'παγώνει' το GUI."""
+    
+    def progress_hook(d):
+        if d['status'] == 'downloading':
+            # Υπολογισμός ποσοστού %
+            total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+            downloaded_bytes = d.get('downloaded_bytes', 0)
+            if total_bytes > 0:
+                percentage = int((downloaded_bytes / total_bytes) * 100)
+                progress_bar['value'] = percentage
+                status_label.config(text=f"Descargando... {percentage}%")
+        elif d['status'] == 'finished':
+            progress_bar['value'] = 100
+            status_label.config(text="Procesando archivo...")
 
-    if descargar_sub and yt.captions:
-        caption = yt.captions.get_by_language_code("es") or yt.captions.get_by_language_code("en")
-        if caption:
-            subs = caption.generate_srt_captions()
-            sub_path = os.path.splitext(archivo)[0] + ".srt"
-            with open(sub_path, "w", encoding="utf-8") as f:
-                f.write(subs)
+    # Ρυθμίσεις για το yt-dlp
+    ydl_opts = {
+        'outtmpl': os.path.join(folder, '%(title)s.%(ext)s'),
+        'progress_hooks': [progress_hook],
+        'noplaylist': 'playlist' not in url.lower(),  # Κατεβάζει playlist if the URL exists!
+    }
 
-    return archivo
+    if file_format == "MP3 (Audio)":
+        ydl_opts.update({
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+        })
+    else:  # MP4 Video
+        ydl_opts.update({
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        })
 
-def descargar():
+    if download_subs:
+        ydl_opts.update({
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+            'subtitleslangs': ['es', 'en'],
+        })
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        
+        status_label.config(text="¡Descarga completada!")
+        messagebox.showinfo("Éxito", "La descarga ha finalizado correctamente.")
+    except Exception as e:
+        status_label.config(text="Error en la descarga")
+        messagebox.showerror("Error", f"Ocurrió un error:\n{str(e)}")
+    finally:
+        download_btn.config(state=tk.NORMAL)
+
+
+def iniciar_descarga():
     url = entrada_url.get().strip()
     formato = combo_formato.get()
     descargar_sub = var_subs.get()
 
     if not url:
-        messagebox.showerror("Error", "Por favor ingresa una URL de Youtube o una playlist.")
+        messagebox.showerror("Error", "Por favor ingresa una URL válida.")
         return
-    try:
-        carpeta = filedialog.askdirectory(title="Selecciona la carpeta de destino")
-        if not carpeta:
-            return
-        barra['value'] = 0
-        estado.set("Preparando descarga...")
-        ventana.update_idletasks()
 
-        if "playlist" in url.lower():
-            playlist = Playlist(url)
-            for video_url in playlist.video_urls:
-                yt = YouTube(video_url)
-                descargar_video(yt, carpeta, formato, descargar_sub)
-        else:
-            yt = YouTube(url)
-            descargar_video(yt, carpeta, formato, descargar_sub)
+    carpeta = filedialog.askdirectory(title="Selecciona la carpeta de destino")
+    if not carpeta:
+        return
 
-        estado.set("Descarga completada")
-        messagebox.showinfo("Completado", "La descarga ha finalizado.")
-    except Exception as e:
-        estado.set("Error al descargar")
-        messagebox.showerror("Error", str(e))
+    # Απενεργοποίηση κουμπιού κατά τη διάρκεια της λήψης
+    boton_descargar.config(state=tk.DISABLED)
+    barra['value'] = 0
+    estado_var.set("Iniciando...")
 
-# GUI
+    # Εκκίνηση σε ξεχωριστό Thread
+    t = threading.Thread(
+        target=download_thread,
+        args=(url, carpeta, formato, descargar_sub, barra, label_estado, boton_descargar),
+        daemon=True
+    )
+    t.start()
+
+
+# --- GUI (Tkinter) ---
 ventana = tk.Tk()
-ventana.title("Convertidor de Youtube")
-ventana.geometry("450x320")
+ventana.title("YouTube Downloader Pro")
+ventana.geometry("480x360")
+ventana.resizable(False, False)
 
-entrada_url = tk.Entry(ventana, width=50)
-entrada_url.pack(pady=10)
+# URL Label & Entry
+label_url = tk.Label(ventana, text="URL del video o Playlist:", font=("Arial", 10, "bold"))
+label_url.pack(pady=(15, 5))
 
-combo_formato = ttk.Combobox(ventana, values=["MP4 (video)", "MP3 (audio)"])
-combo_formato.set("MP4 (video)")
-combo_formato.pack(pady=5)
+entrada_url = tk.Entry(ventana, width=55)
+entrada_url.pack(pady=5)
 
+# Formato Combobox
+combo_formato = ttk.Combobox(ventana, values=["MP4 (Video)", "MP3 (Audio)"], state="readonly")
+combo_formato.set("MP4 (Video)")
+combo_formato.pack(pady=10)
+
+# Checkbox Subtítulos
 var_subs = tk.BooleanVar()
-check_subs = tk.Checkbutton(ventana, text="Descargar subtítulos (si hay)", variable=var_subs)
-check_subs.pack()
+check_subs = tk.Checkbutton(ventana, text="Descargar subtítulos (ES/EN)", variable=var_subs)
+check_subs.pack(pady=5)
 
-boton_descargar = tk.Button(ventana, text="Descargar", command=descargar)
-boton_descargar.pack(pady=10)
+# Botón Descargar
+boton_descargar = tk.Button(ventana, text="Descargar", command=iniciar_descarga, bg="#4CAF50", fg="white", font=("Arial", 10, "bold"), px=10, py=5)
+boton_descargar.pack(pady=15)
 
-barra = ttk.Progressbar(ventana, length=300)
-barra.pack(pady=10)
+# Barra de progreso
+barra = ttk.Progressbar(ventana, length=380, mode='determinate')
+barra.pack(pady=5)
 
-estado = tk.StringVar()
-estado.set("Esperando URL...")
-label_estado = tk.Label(ventana, textvariable=estado)
-label_estado.pack()
+# Estado
+estado_var = tk.StringVar(value="Esperando URL...")
+label_estado = tk.Label(ventana, textvariable=estado_var, font=("Arial", 9, "italic"))
+label_estado.pack(pady=5)
 
 ventana.mainloop()
