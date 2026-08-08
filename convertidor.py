@@ -25,7 +25,7 @@ def download_thread(url, folder, file_format, download_subs, progress_bar, statu
     ydl_opts = {
         'outtmpl': os.path.join(folder, '%(title)s.%(ext)s'),
         'progress_hooks': [progress_hook],
-        'noplaylist': 'playlist' not in url.lower(),  # Κατεβάζει playlist if the URL exists!
+        'noplaylist': 'playlist' not in url.lower(),  # Downloads the playlist if the URL exists!
     }
 
     if file_format == "MP3 (Audio)":
