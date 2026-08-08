@@ -10,7 +10,7 @@ def download_thread(url, folder, file_format, download_subs, progress_bar, statu
     
     def progress_hook(d):
         if d['status'] == 'downloading':
-            # Υπολογισμός ποσοστού %
+            # Calculating percentages %
             total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
             downloaded_bytes = d.get('downloaded_bytes', 0)
             if total_bytes > 0:
