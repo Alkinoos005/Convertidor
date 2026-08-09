@@ -1,4 +1,4 @@
-# YouTube Converter and also a Downloader Pro
+# YouTube Converter/Α Downloader Pro
 
 A clean, user-friendly desktop application built in Python that allows you to download YouTube videos or extract audio tracks with ease. Designed with a Tkinter GUI and powered by "yt-dlp",it features multi-threading to ensure the application interface remains smooth and responsive throughout the download process.
 
