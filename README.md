@@ -12,8 +12,8 @@ A clean, user-friendly desktop application built in Python that allows you to do
 
 # Requirements and Prerequisites:
 
--Python: 3.8 or higher installed on your system.
--FFmpeg (Optional but highly Recommended): Required by `yt-dlp` for advanced audio conversion and post-processing.
+- Python: 3.8 or higher installed on your system.
+- FFmpeg (Optional but highly Recommended): Required by `yt-dlp` for advanced audio conversion and post-processing.
 
 # Python Dependencies:
 
